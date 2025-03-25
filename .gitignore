@@ -1,0 +1,9 @@
+base/build/
+base/dist/
+base/pyttman_plugin_base.egg-info/
+mongoengineplugin/build/
+mongoengineplugin/pyttman_plugin_mongoengine.egg-info/
+mongoengineplugin/dist/
+openaiplugin/pyttman_plugin_openai.egg-info/
+openaiplugin/dist/
+openaiplugin/build/
