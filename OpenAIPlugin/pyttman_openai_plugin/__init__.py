@@ -246,12 +246,17 @@ class OpenAIPlugin(PyttmanPlugin):
                             "not match memory making or is a question, return 0")
 
     long_term_memory_prompt = ("\nThese following data are your long term "
-                               "memories with this user. If existing, look at "
-                               "the date time mentioned in the memory. Compare it "
+                               "memories with this user. Look at "
+                               "the date time mentioned in the memory and evaluate "
+                               "whether this memory has already happened or if it's "
+                               "in the future. Use the datetime right now to think "
                                "with the datetime right now to think when this "
-                               "memory happened. Be aware of how long ago it was "
+                               "memory happened - it might be in the past now, "
+                               "compared to when the memory was created. "
+                               "Be aware of how long ago it was "
                                "since whatever the memory was stored and use this "
-                               "time difference when responding to the user. "
+                               "time difference when responding to the user. Oldest "
+                               "memories are at the top, newest at the bottom. "
                                "memories: {}")
     def __init__(self,
                  api_key: str,
@@ -363,7 +368,7 @@ class OpenAIPlugin(PyttmanPlugin):
             system_prompt += self.long_term_memory_prompt.format("\n".join(memories))
         if self.time_aware:
             now = datetime.now(tz=self.zone_info) if self.zone_info else datetime.now()
-            time_prompt = f"The date time right now is {now.strftime('%Y-%m-%d %H:%M:%S')}."
+            time_prompt = f"The date time when this was memorized: {now.strftime('%Y-%m-%d %H:%M:%S')}."
             system_prompt = f"{time_prompt}\n{system_prompt}"
         return OpenAiRequestPayload(
             model=self.model,
