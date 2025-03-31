@@ -4,7 +4,7 @@ from setuptools import setup, find_packages
 # This call to setup() does all the work
 setup(
     name="pyttman_plugin_openai",
-    version="1.0.9",
+    version="1.1.0",
     description="OpenAI plugin for Pyttman apps, allowing seamless LLM integrations with Pyttman.",
     long_description_content_type="text/markdown",
     url="https://github.com/Hashmap-Software-Agency/Pyttman-Plugins",
@@ -24,5 +24,6 @@ setup(
     install_requires=[
         "requests",
         "pyttman_plugin_base",
+        "tiktoken"
     ],
 )
