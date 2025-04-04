@@ -310,13 +310,12 @@ class OpenAIPlugin(PyttmanPlugin):
 
     @property
     def time_awareness_prompt(self):
-        pre_prompt = "The date time for this event was: {}"
+        pre_prompt = "The date time right now is: {}"
         if self.zone_info:
             now = datetime.now(tz=self.zone_info)
         else:
             now = datetime.now()
         return pre_prompt.format(now.strftime("%Y-%m-%d %H:%M:%S"))
-
 
     def on_app_start(self):
         if (static_files_dir := self.app.settings.STATIC_FILES_DIR) is None:
@@ -369,7 +368,7 @@ class OpenAIPlugin(PyttmanPlugin):
             system_prompt += self.long_term_memory_prompt.format("\n".join(memories))
         if self.time_aware:
             now = datetime.now(tz=self.zone_info) if self.zone_info else datetime.now()
-            time_prompt = f"The date time when this was memorized: {now.strftime('%Y-%m-%d %H:%M:%S')}."
+            time_prompt = f"The date time right now is {now.strftime('%Y-%m-%d %H:%M:%S')}."
             system_prompt = f"{time_prompt}\n{system_prompt}"
         payload = OpenAiRequestPayload(
             model=self.model,
@@ -425,8 +424,6 @@ class OpenAIPlugin(PyttmanPlugin):
             return None
 
     def update_conversation(self, message):
-        if self.time_aware:
-            message.content = f"{self.time_awareness_prompt}: {message.as_str()}"
         if self.conversation_rag.get(message.author.id) is None:
             self.conversation_rag[message.author.id] = {"user": [message.as_str()], "ai": []}
         else:
