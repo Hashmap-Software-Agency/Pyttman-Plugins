@@ -368,7 +368,10 @@ class OpenAIPlugin(PyttmanPlugin):
             system_prompt += self.long_term_memory_prompt.format("\n".join(memories))
         if self.time_aware:
             now = datetime.now(tz=self.zone_info) if self.zone_info else datetime.now()
-            time_prompt = f"The date time right now is {now.strftime('%Y-%m-%d %H:%M:%S')}."
+            weekday = now.strftime("%A")
+            calendar_week = now.strftime("%U")
+            time_prompt = (f"The date time right now is {now.strftime('%Y-%m-%d %H:%M:%S')}."
+                           f"It's a {weekday} in week {calendar_week}.")
             system_prompt = f"{time_prompt}\n{system_prompt}"
         payload = OpenAiRequestPayload(
             model=self.model,
