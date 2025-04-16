@@ -457,9 +457,6 @@ class OpenAIPlugin(PyttmanPlugin):
         if new_memory := self.create_memory_if_applicable(message):
             self.long_term_memory.add_memory(message.author.id, new_memory)
 
-        if self.enable_conversations:
-            self.update_conversation(message)
-
         error_response = Reply("I'm sorry, I couldn't generate a response for you.")
         payload = self._prepare_payload(message)
 
@@ -489,3 +486,6 @@ class OpenAIPlugin(PyttmanPlugin):
             pyttman.logger.log(level="error",
                                message="OpenAIPlugin: No response from OpenAI API.")
             return error_response
+        finally:
+            if self.enable_conversations:
+                self.update_conversation(message)
