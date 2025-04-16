@@ -268,7 +268,7 @@ class OpenAIPlugin(PyttmanPlugin):
                                "since whatever the memory was stored and use this "
                                "time difference when responding to the user. Oldest "
                                "memories are at the top, newest at the bottom. "
-                               "memories: {}")
+                               "memories:\n```\n{}\n```\n")
     def __init__(self,
                  api_key: str,
                  model: str,
@@ -320,12 +320,11 @@ class OpenAIPlugin(PyttmanPlugin):
 
     @property
     def time_awareness_prompt(self):
-        pre_prompt = "The date time right now is: {}"
-        if self.zone_info:
-            now = datetime.now(tz=self.zone_info)
-        else:
-            now = datetime.now()
-        return pre_prompt.format(now.strftime("%Y-%m-%d %H:%M:%S"))
+        now = datetime.now(tz=self.zone_info) if self.zone_info else datetime.now()
+        weekday = now.strftime("%A")
+        calendar_week = now.strftime("%U")
+        time_prompt = (f"[{now.strftime('%Y-%m-%d %H:%M:%S')} - {weekday}, week {calendar_week}]")
+        return time_prompt
 
     def on_app_start(self):
         if (static_files_dir := self.app.settings.STATIC_FILES_DIR) is None:
@@ -340,19 +339,57 @@ class OpenAIPlugin(PyttmanPlugin):
 
         pyttman.logger.log("- [OpenAIPlugin]: Plugin started.")
 
-    def _prepare_rag_prompt(self, message: MessageMixin) -> str:
+    def update_conversation(self, message: MessageMixin):
+        """
+        Update the conversation history with the user's message.
+        """
+        if self.time_aware:
+            message_content = f"{self.time_awareness_prompt}: {message.as_str()}"
+
+        if self.conversation_rag.get(message.author.id) is None:
+            self.conversation_rag[message.author.id] = {"user": [message_content], "ai": []}
+        else:
+            self.conversation_rag[message.author.id]["user"].append(message_content)
+
+        while True:
+            user_length = len("".join(self.conversation_rag[message.author.id]["user"]))
+            ai_length = len("".join(self.conversation_rag[message.author.id]["ai"]))
+
+            if user_length + ai_length > self.max_conversation_length:
+                self.conversation_rag[message.author.id]["user"].pop(0)
+                self.conversation_rag[message.author.id]["ai"].pop(0)
+            else:
+                break
+
+    def get_conversation(self, message: MessageMixin, last: int = None) -> str:
         """
         Use RAG to prepend conversation history with this user to
         the outgoing llm request.
+
+        The last x messages can be returned provided a number.
         """
-        if not self.enable_conversations:
+        if not self.enable_conversations or not self.conversation_rag:
             return message.as_str()
 
         conversation = ""
+        count = 0
+
+        if last is not None:
+            try:
+                user_messages = self.conversation_rag[message.author.id]["user"]
+                user_messages = user_messages[len(user_messages) - last:]
+                ai_messages = self.conversation_rag[message.author.id]["ai"]
+                ai_messages = ai_messages[len(ai_messages) - last:]
+            except KeyError:
+                return message.as_str()
+        else:
+            user_messages = self.conversation_rag[message.author.id]["user"]
+            ai_messages = self.conversation_rag[message.author.id]["ai"]
+
         for user_message, ai_message in zip_longest(
-                self.conversation_rag[message.author.id]["user"],
-                self.conversation_rag[message.author.id]["ai"],
-                fillvalue=""
+            user_messages,
+            ai_messages,
+            fillvalue=""
         ):
             if user_message:
                 conversation += f"User: {user_message}\n"
@@ -365,13 +402,13 @@ class OpenAIPlugin(PyttmanPlugin):
         Prepare a payload towards OpenAI.
         """
         if self.enable_conversations:
-            user_prompt = self._prepare_rag_prompt(message)
+            conversation = self.get_conversation(message)
             system_prompt = self.system_prompt + self.conversation_prompt
             pyttman.logger.log(f" - [OpenAIPlugin]: conversation size "
-                               f"for user {message.author.id}: {len(user_prompt)}")
+                               f"for user {message.author.id}: {len(conversation)}")
         else:
             system_prompt = self.system_prompt
-            user_prompt = message.as_str()
+            conversation = message.as_str()
 
         if self.enable_memories:
             memories = self.long_term_memory.get_memories(message.author.id)
@@ -383,13 +420,14 @@ class OpenAIPlugin(PyttmanPlugin):
             time_prompt = (f"The date time right now is {now.strftime('%Y-%m-%d %H:%M:%S')}."
                            f"It's a {weekday} in week {calendar_week}.")
             system_prompt = f"{time_prompt}\n{system_prompt}"
+
         payload = OpenAiRequestPayload(
             model=self.model,
             system_prompt=system_prompt,
-            user_prompt=user_prompt).as_json()
+            user_prompt=conversation).as_json()
 
         try:
-            tokens = tiktoken.encoding_for_model(self.model).encode(system_prompt + user_prompt)
+            tokens = tiktoken.encoding_for_model(self.model).encode(system_prompt + conversation)
         except Exception:
             # Tiktoken may not have support for this model yet.
             pyttman.logger.log(level="warning",
@@ -458,22 +496,6 @@ class OpenAIPlugin(PyttmanPlugin):
                                        f"OpenAI API failed: {e}")
             return None
 
-    def update_conversation(self, message):
-        if self.conversation_rag.get(message.author.id) is None:
-            self.conversation_rag[message.author.id] = {"user": [message.as_str()], "ai": []}
-        else:
-            self.conversation_rag[message.author.id]["user"].append(message.as_str())
-
-        while True:
-            user_length = len("".join(self.conversation_rag[message.author.id]["user"]))
-            ai_length = len("".join(self.conversation_rag[message.author.id]["ai"]))
-
-            if user_length + ai_length > self.max_conversation_length:
-                self.conversation_rag[message.author.id]["user"].pop(0)
-                self.conversation_rag[message.author.id]["ai"].pop(0)
-            else:
-                break
-
     def no_intent_match(self, message: MessageMixin) -> Reply | None:
         """
         Hook. Executed when no intent matches the user's message.
@@ -483,6 +505,9 @@ class OpenAIPlugin(PyttmanPlugin):
 
         error_response = Reply("I'm sorry, I couldn't generate a response for you.")
         payload = self._prepare_payload(message)
+
+        if self.enable_conversations:
+            self.update_conversation(message)
 
         if self.max_tokens:
             payload["max_tokens"] = self.max_tokens
@@ -502,7 +527,9 @@ class OpenAIPlugin(PyttmanPlugin):
 
         try:
             gpt_content = response.json()["choices"][0]["message"]["content"]
-            self.conversation_rag[message.author.id]["ai"].append(gpt_content)
+            ai_reply = f"{self.time_awareness_prompt}: {gpt_content}" if self.time_aware else gpt_content
+
+            self.conversation_rag[message.author.id]["ai"].append(ai_reply)
             if new_memory:
                 gpt_content = f"{self.memory_updated_notice}\n{gpt_content}"
             return Reply(gpt_content)
@@ -510,6 +537,3 @@ class OpenAIPlugin(PyttmanPlugin):
             pyttman.logger.log(level="error",
                                message="OpenAIPlugin: No response from OpenAI API.")
             return error_response
-        finally:
-            if self.enable_conversations:
-                self.update_conversation(message)
