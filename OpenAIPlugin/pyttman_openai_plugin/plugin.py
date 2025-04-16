@@ -233,18 +233,28 @@ class OpenAIPlugin(PyttmanPlugin):
                            "with a human, taking the history in the dialogue "
                            "you've already had. \n\n")
 
-    detect_memory_prompt = ("Determine if this message contains something the user "
-                            "shares with you that you are expected to remember. It "
-                            "could be anything from a name, a place, a date, a task, "
-                            "or something they share about their life. It could be a "
-                            "direct encouragement to remember something for the future, "
-                            "or a clear directive to create a memory of something. It "
-                            "could also just be a detail shared with you, that a human "
-                            "would remember about them. If you think you should remember "
-                            "something, Read the content of what to remember from the "
-                            "user message and return the memory in this format: "
-                            "'[MEMORY]: {your memory content here}'. If the message does "
-                            "not match memory making or is a question, return 0")
+    detect_memory_prompt = ("Determine if these message(s) contains something the user "
+                            "shares with you that you are expected to remember long-term."
+                            "This is not for minor details, but rather key points that "
+                            "humans remember after a long conversation with eachother. "
+                            "What to memorize is up to you, but it should be things that "
+                            "leave an imprint on the user, or are important to them. It could "
+                            "be a detail which in itself is trivial - but in regards to their "
+                            "child or themselves, it could be important. You have to decide "
+                            "based on the context of the conversation. "
+                            "It could be anything from a name, a place, a date, a task, "
+                            "or something they share about their life. It could be a clear "
+                            "directive to create a memory of something. A reminder, as an example." 
+                            "You must not create memories of things that are already in "
+                            "your memory bank. A small similarity is enough to consider a "
+                            "memory already existing. If this is the case, return 0."
+                            "If the memory is simply a short phrase about the user asking "
+                            "about something, return 0. "
+                            "If the message does not match memory making for other reasons, return 0."
+                            "If the message is a question, or a request for information, "
+                            "return 0."
+                            "Memories should be summarized. Type the content of what to remember "
+                            "in this format: '[MEMORY]: <your memory content here>'. ")
 
     long_term_memory_prompt = ("\nThese following data are your long term "
                                "memories with this user. Look at "
@@ -414,11 +424,25 @@ class OpenAIPlugin(PyttmanPlugin):
         If time awareness is enabled, the memory will be prepended
         with the current date and time in the user-defined timezone
         or the system timezone as fallback.
+
+        When the llm is prompted, the ten most recent memories
+        are included as a context. This is to mitigate the risk of
+        the model creating multiple memories of the same thing over
+        and over again.
         """
+        if self.enable_conversations:
+            conversation = self.get_conversation(message, last=5)
+        else:
+            conversation = message.as_str()
+
+        memories = self.long_term_memory.get_memories(message.author.id)
+        ten_last_memories = memories[-10:]
+        most_recent_memories_prompt = self.long_term_memory_prompt.format("\n".join(ten_last_memories))
+        system_prompt = f"{most_recent_memories_prompt}\n{self.detect_memory_prompt}"
         payload = OpenAiRequestPayload(
             model=self.model,
-            system_prompt=self.detect_memory_prompt,
-            user_prompt=message.as_str()).as_json()
+            system_prompt=system_prompt,
+            user_prompt=conversation).as_json()
 
         try:
             response = self.session.post(self.url, json=payload)
