@@ -377,8 +377,16 @@ class OpenAIPlugin(PyttmanPlugin):
             model=self.model,
             system_prompt=system_prompt,
             user_prompt=user_prompt).as_json()
-        tokens = tiktoken.encoding_for_model(self.model).encode(system_prompt + user_prompt)
-        pyttman.logger.log(f" - [OpenAIPlugin]: Tokens used in this request: {len(tokens)}")
+
+        try:
+            tokens = tiktoken.encoding_for_model(self.model).encode(system_prompt + user_prompt)
+        except Exception:
+            # Tiktoken may not have support for this model yet.
+            pyttman.logger.log(level="warning",
+                               message=f" - [OpenAIPlugin]: Failed to "
+                                       f"calculate tokens for model {self.model}. ")
+        else:
+            pyttman.logger.log(f" - [OpenAIPlugin]: Tokens used in this request: {len(tokens)}")
         return payload
 
     def before_router(self, message: MessageMixin):
