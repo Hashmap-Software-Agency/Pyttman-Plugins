@@ -233,10 +233,14 @@ class OpenAIPlugin(PyttmanPlugin):
                            "with a human, taking the history in the dialogue "
                            "you've already had. \n\n")
 
-    detect_memory_prompt = ("Determine if these message(s) contains something the user "
-                            "shares with you that you are expected to remember long-term."
+    detect_memory_prompt = ("You are a layer in a multi-modal AI system. Your only job is to"
+                            "determine if these message(s) contains something the user "
+                            "shares with you that you are expected to remember long-term. "
+                            "Your response will not be seen by the user, but rather "
+                            "by a memory making system. You are not allowed to "
+                            "write a response to the user."
                             "This is not for minor details, but rather key points that "
-                            "humans remember after a long conversation with eachother. "
+                            "humans remember after a long conversation with each other. "
                             "What to memorize is up to you, but it should be things that "
                             "leave an imprint on the user, or are important to them. It could "
                             "be a detail which in itself is trivial - but in regards to their "
@@ -244,7 +248,7 @@ class OpenAIPlugin(PyttmanPlugin):
                             "based on the context of the conversation. "
                             "It could be anything from a name, a place, a date, a task, "
                             "or something they share about their life. It could be a clear "
-                            "directive to create a memory of something. A reminder, as an example." 
+                            "directive to create a memory of something. A reminder, as an example."
                             "You must not create memories of things that are already in "
                             "your memory bank. A small similarity is enough to consider a "
                             "memory already existing. If this is the case, return 0."
@@ -323,7 +327,7 @@ class OpenAIPlugin(PyttmanPlugin):
         now = datetime.now(tz=self.zone_info) if self.zone_info else datetime.now()
         weekday = now.strftime("%A")
         calendar_week = now.strftime("%U")
-        time_prompt = (f"[{now.strftime('%Y-%m-%d %H:%M:%S')} - {weekday}, week {calendar_week}]")
+        time_prompt = f"[{now.strftime('%Y-%m-%d %H:%M:%S')} - {weekday}, week {calendar_week}]"
         return time_prompt
 
     def on_app_start(self):
@@ -345,6 +349,8 @@ class OpenAIPlugin(PyttmanPlugin):
         """
         if self.time_aware:
             message_content = f"{self.time_awareness_prompt}: {message.as_str()}"
+        else:
+            message_content = message.as_str()
 
         if self.conversation_rag.get(message.author.id) is None:
             self.conversation_rag[message.author.id] = {"user": [message_content], "ai": []}
@@ -372,19 +378,20 @@ class OpenAIPlugin(PyttmanPlugin):
             return message.as_str()
 
         conversation = ""
-        count = 0
+        try:
+            user_messages = self.conversation_rag[message.author.id]["user"]
+            ai_messages = self.conversation_rag[message.author.id]["ai"]
+        except KeyError:
+            user_messages = [message.as_str()]
+            ai_messages = []
 
         if last is not None:
             try:
-                user_messages = self.conversation_rag[message.author.id]["user"]
                 user_messages = user_messages[len(user_messages) - last:]
-                ai_messages = self.conversation_rag[message.author.id]["ai"]
                 ai_messages = ai_messages[len(ai_messages) - last:]
             except KeyError:
+                # No history saved - return the message as is.
                 return message.as_str()
-        else:
-            user_messages = self.conversation_rag[message.author.id]["user"]
-            ai_messages = self.conversation_rag[message.author.id]["ai"]
 
         for user_message, ai_message in zip_longest(
             user_messages,
