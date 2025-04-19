@@ -327,7 +327,8 @@ class OpenAIPlugin(PyttmanPlugin):
         now = datetime.now(tz=self.zone_info) if self.zone_info else datetime.now()
         weekday = now.strftime("%A")
         calendar_week = now.strftime("%U")
-        time_prompt = f"[{now.strftime('%Y-%m-%d %H:%M:%S')} - {weekday}, week {calendar_week}]"
+        time_prompt = (f"[{now.strftime('%Y-%m-%d %H:%M:%S')} - "
+                       f"{weekday}, week number {calendar_week}]")
         return time_prompt
 
     def on_app_start(self):
