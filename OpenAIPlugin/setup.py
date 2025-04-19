@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="pyttman_plugin_openai",
-    version="1.3.4",
+    version="1.3.5",
     description="OpenAI plugin for Pyttman apps, allowing seamless LLM integrations with Pyttman.",
     long_description_content_type="text/markdown",
     url="https://github.com/Hashmap-Software-Agency/Pyttman-Plugins",

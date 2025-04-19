@@ -240,7 +240,7 @@ class OpenAIPlugin(PyttmanPlugin):
                             "by a memory making system. You are not allowed to "
                             "write a response to the user."
                             "This is not for minor details, but rather key points that "
-                            "humans remember after a long conversation with each other. "
+                            "humans remember after a long conversation with eachother. "
                             "What to memorize is up to you, but it should be things that "
                             "leave an imprint on the user, or are important to them. It could "
                             "be a detail which in itself is trivial - but in regards to their "
@@ -256,8 +256,10 @@ class OpenAIPlugin(PyttmanPlugin):
                             "about something, return 0. "
                             "If the message does not match memory making for other reasons, return 0."
                             "If the message is a question, or a request for information, "
-                            "return 0."
-                            "Memories should be summarized. Type the content of what to remember "
+                            "return 0. If the message is a command, return 0. "
+                            "If the message is a question, return 0."
+                            "Memories should be summarized and as short as possible. "
+                            "Type the content of what to remember "
                             "in this format: '[MEMORY]: <your memory content here>'. ")
 
     long_term_memory_prompt = ("\nThese following data are your long term "
